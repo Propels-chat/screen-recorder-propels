@@ -1340,19 +1340,84 @@ const handleSaveToDrive = async (sendResponse, request, fallback = false) => {
   }
 };
 
-const desktopCapture = async (request) => {
-  const { backup } = await chrome.storage.local.get(["backup"]);
-  const { backupSetup } = await chrome.storage.local.get(["backupSetup"]);
-  chrome.storage.local.set({ sendingChunks: false });
-  if (backup) {
-    if (!backupSetup) {
-      localDirectoryStore.clear();
+const checkRecordingPermission = async () => {
+  try {
+    console.log("Background: Checking recording permission");
+    const idToken = process.env.ID_TOKEN;
+    const API_BASE_URL = process.env.API_BASE_URL;
+
+    const response = await fetch(`${API_BASE_URL}/subscription`, {
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    console.log("Background: Got permission response");
+    console.info(response);
+
+    if (!response.ok) {
+      throw new Error("Failed to check recording permission");
     }
 
-    let activeTab = await getCurrentTab();
-    initBackup(request, activeTab.id);
-  } else {
-    offscreenDocument(request);
+    const { can_record, upload_url, message } = await response.json();
+    console.log(
+      `Background: Permission check result - can_record: ${can_record}, message: ${message}`
+    );
+
+    // Store upload_url for later use
+    if (upload_url) {
+      await chrome.storage.local.set({ upload_url });
+    }
+
+    return { can_record, message };
+  } catch (error) {
+    console.error("Background: Permission check failed:", error);
+    return {
+      can_record: false,
+      message: "Failed to verify recording permissions",
+    };
+  }
+};
+
+const desktopCapture = async (request) => {
+  try {
+    // Check recording permission first
+    const { can_record, message } = await checkRecordingPermission();
+
+    if (!can_record) {
+      // Send error message to active tab
+      const activeTab = await getCurrentTab();
+      sendMessageTab(activeTab.id, {
+        type: "recording-error",
+        error: "subscription-error",
+        why: message,
+      });
+      return;
+    }
+
+    // Continue with existing logic
+    const { backup } = await chrome.storage.local.get(["backup"]);
+    const { backupSetup } = await chrome.storage.local.get(["backupSetup"]);
+    chrome.storage.local.set({ sendingChunks: false });
+
+    if (backup) {
+      if (!backupSetup) {
+        localDirectoryStore.clear();
+      }
+      let activeTab = await getCurrentTab();
+      initBackup(request, activeTab.id);
+    } else {
+      offscreenDocument(request);
+    }
+  } catch (error) {
+    console.error("Background: Error in desktopCapture:", error);
+    const activeTab = await getCurrentTab();
+    sendMessageTab(activeTab.id, {
+      type: "recording-error",
+      error: "permission-check-failed",
+      why: error.message,
+    });
   }
 };
 
