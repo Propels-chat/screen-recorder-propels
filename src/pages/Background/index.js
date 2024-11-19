@@ -1380,18 +1380,74 @@ const checkRecordingPermission = async () => {
   }
 };
 
+// Add new function for starting recording session
+const startRecordingSession = async () => {
+  try {
+    console.log("Background: Starting recording session");
+    const idToken = process.env.ID_TOKEN;
+    const API_BASE_URL = process.env.API_BASE_URL;
+
+    console.log("calling /start-screen-recording api");
+    const response = await fetch(`${API_BASE_URL}/start-screen-recording`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    console.log(
+      "Background: Got session response from /start-screen-recording api"
+    );
+    console.info(response);
+
+    if (!response.ok) {
+      throw new Error("Failed to start recording session");
+    }
+
+    const { video_id, upload_path, message } = await response.json();
+    console.log(
+      `Background: Session started - video_id: ${video_id}, upload_path: ${upload_path}, message: ${message}`
+    );
+
+    // Store session info for later use
+    await chrome.storage.local.set({
+      current_video_id: video_id,
+      current_upload_path: upload_path,
+    });
+
+    return { success: true, message };
+  } catch (error) {
+    console.error("Background: Session start failed:", error);
+    return { success: false, message: "Failed to start recording session" };
+  }
+};
+
+// Modify desktopCapture to include session initialization
 const desktopCapture = async (request) => {
   try {
     // Check recording permission first
     const { can_record, message } = await checkRecordingPermission();
 
     if (!can_record) {
-      // Send error message to active tab
       const activeTab = await getCurrentTab();
       sendMessageTab(activeTab.id, {
         type: "recording-error",
         error: "subscription-error",
         why: message,
+      });
+      return;
+    }
+
+    // Start recording session
+    const { success, message: sessionMessage } = await startRecordingSession();
+
+    if (!success) {
+      const activeTab = await getCurrentTab();
+      sendMessageTab(activeTab.id, {
+        type: "recording-error",
+        error: "session-error",
+        why: sessionMessage,
       });
       return;
     }
