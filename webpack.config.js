@@ -7,6 +7,8 @@ var webpack = require("webpack"),
   TerserPlugin = require("terser-webpack-plugin");
 var { CleanWebpackPlugin } = require("clean-webpack-plugin");
 
+const dotenv = require("dotenv");
+
 const ASSET_PATH = process.env.ASSET_PATH || "/";
 
 var alias = {
@@ -143,6 +145,12 @@ var options = {
   },
   plugins: [
     new CleanWebpackPlugin({ verbose: false }),
+    new webpack.DefinePlugin({
+      "process.env": JSON.stringify({
+        ...dotenv.config().parsed,
+        NODE_ENV: process.env.NODE_ENV || "development",
+      }),
+    }),
     new webpack.ProgressPlugin(),
     // expose and write the allowed env vars on the compiled bundle
     new webpack.EnvironmentPlugin(["NODE_ENV"]),

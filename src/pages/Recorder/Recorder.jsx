@@ -9,6 +9,38 @@ localforage.config({
   version: 1, // optional
 });
 
+const checkRecordingPermission = async () => {
+  try {
+    const idToken = process.env.ID_TOKEN;
+    const API_BASE_URL = process.env.API_BASE_URL;
+    const response = await fetch(`${API_BASE_URL}/subscription`, {
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to check recording permission");
+    }
+
+    const { can_record, upload_url, message } = await response.json();
+
+    // Store upload_url for later use
+    if (upload_url) {
+      await chrome.storage.local.set({ upload_url });
+    }
+
+    return { can_record, message };
+  } catch (error) {
+    console.error("Permission check failed:", error);
+    return {
+      can_record: false,
+      message: "Failed to verify recording permissions",
+    };
+  }
+};
+
 // Get chunks store
 const chunksStore = localforage.createInstance({
   name: "chunks",
@@ -61,6 +93,27 @@ const Recorder = () => {
   async function startRecording() {
     // Check that a recording is not already in progress
     if (recorder.current !== null) return;
+
+    // Add subscription check
+    const { can_record, message } = await checkRecordingPermission();
+
+    console.log("checking permissions now");
+
+    if (!can_record) {
+      console.log(
+        `permission denied: can_record: ${can_record}, message: ${message}`
+      );
+      chrome.runtime.sendMessage({
+        type: "recording-error",
+        error: "subscription-error",
+        why: message,
+      });
+      return;
+    }
+
+    console.log(
+      `permission true: can_record: ${can_record}, message: ${message}`
+    );
 
     navigator.storage.persist();
     // Check if the stream actually has data in it
@@ -567,7 +620,19 @@ const Recorder = () => {
   }
 
   async function startStreaming(data) {
-    // Check user permissions for camera and microphone individually
+    // First check recording permission
+    const { can_record, message } = await checkRecordingPermission();
+
+    if (!can_record) {
+      chrome.runtime.sendMessage({
+        type: "recording-error",
+        error: "subscription-error",
+        why: message,
+      });
+      return;
+    }
+
+    // Continue with existing permission checks and stream setup
     const permissions = await navigator.permissions.query({
       name: "camera",
     });
