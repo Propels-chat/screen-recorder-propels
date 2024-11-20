@@ -153,7 +153,9 @@ const Recorder = () => {
     index.current = 0;
 
     try {
-      recorder.current.start(3000);
+      console.log("🟡 Recorder: Starting recording with index:", index.current);
+      console.log(`🟡 Recorder: Started at: ${new Date().toISOString()}`);
+      recorder.current.start(5000);
     } catch (err) {
       chrome.runtime.sendMessage({
         type: "recording-error",
@@ -204,21 +206,68 @@ const Recorder = () => {
       if (e.data.size > 0 && e.timecode) {
         try {
           const timestamp = e.timecode;
+          console.log("🟡 Recorder: -------- Chunk Check --------");
+          console.log(`🟡 Recorder: Current index: ${index.current}`);
+          console.log(`🟡 Recorder: Chunk size: ${e.data.size}`);
+          console.log(`🟡 Recorder: Time since start: ${timestamp}ms`);
+          console.log(
+            `🟡 Recorder: Has video_id in storage?`,
+            await chrome.storage.local.get(["current_video_id"])
+          );
+
           if (hasChunks.current === false) {
             hasChunks.current = true;
             lastTimecode.current = timestamp;
+            console.log("First chunk received");
           } else if (timestamp < lastTimecode.current) {
             // This is a duplicate chunk, ignore it
+            console.log("Duplicate chunk detected, skipping");
             return;
           } else {
             lastTimecode.current = timestamp;
           }
 
+          // Store in IndexedDB first
           await chunksStore.setItem(`chunk_${index.current}`, {
             index: index.current,
             chunk: e.data,
             timestamp: timestamp,
           });
+
+          // Convert Blob to base64 string
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64data = reader.result;
+            console.log("🟡 Recorder: About to send chunk:", {
+              index: index.current,
+              isFirstChunk: index.current === 0,
+              timestamp: new Date().toISOString(),
+            });
+
+            chrome.runtime.sendMessage(
+              {
+                type: "upload-segment",
+                chunk: {
+                  data: base64data,
+                  type: e.data.type,
+                  base64Size: base64data.length,
+                },
+                index: index.current,
+                timestamp: timestamp,
+              },
+              (response) => {
+                console.log(
+                  "🟡 Recorder: Background response for segment",
+                  index.current,
+                  ":",
+                  response
+                );
+                // Only increment after successful send
+                index.current++;
+              }
+            );
+          };
+          reader.readAsDataURL(e.data);
 
           if (backupRef.current) {
             chrome.runtime.sendMessage({
@@ -226,7 +275,6 @@ const Recorder = () => {
               index: index.current,
             });
           }
-          index.current++;
         } catch (err) {
           chrome.storage.local.set({
             recording: false,

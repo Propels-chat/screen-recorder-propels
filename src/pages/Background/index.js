@@ -1383,11 +1383,10 @@ const checkRecordingPermission = async () => {
 // Add new function for starting recording session
 const startRecordingSession = async () => {
   try {
-    console.log("Background: Starting recording session");
+    console.log("🔵 Background Script: Starting recording session");
     const idToken = process.env.ID_TOKEN;
     const API_BASE_URL = process.env.API_BASE_URL;
 
-    console.log("calling /start-screen-recording api");
     const response = await fetch(`${API_BASE_URL}/start-screen-recording`, {
       method: "POST",
       headers: {
@@ -1396,29 +1395,26 @@ const startRecordingSession = async () => {
       },
     });
 
-    console.log(
-      "Background: Got session response from /start-screen-recording api"
-    );
-    console.info(response);
-
     if (!response.ok) {
       throw new Error("Failed to start recording session");
     }
 
     const { video_id, upload_path, message } = await response.json();
-    console.log(
-      `Background: Session started - video_id: ${video_id}, upload_path: ${upload_path}, message: ${message}`
-    );
+    console.log("🔵 Background Script: Session started:", {
+      videoId: video_id,
+      uploadPath: upload_path,
+      message: message,
+    });
 
-    // Store session info for later use
+    // Store only video_id and upload_path
     await chrome.storage.local.set({
       current_video_id: video_id,
-      current_upload_path: upload_path,
+      base_upload_path: upload_path,
     });
 
     return { success: true, message };
   } catch (error) {
-    console.error("Background: Session start failed:", error);
+    console.error("🔴 Background Script: Session start failed:", error);
     return { success: false, message: "Failed to start recording session" };
   }
 };
@@ -1876,9 +1872,227 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     );
   } else if (request.type === "add-alarm-listener") {
     addAlarmListener();
+  } else if (request.type === "upload-segment") {
+    (async () => {
+      try {
+        console.log("🔵 Background Script: -------- Segment Analysis --------");
+        console.log("🔵 Background Script: Received index:", request.index);
+
+        // Check if this is potentially first chunk
+        if (request.index === 0) {
+          console.log("🔵 Background Script: First chunk detected!");
+        }
+
+        // Check session initialization
+        const { current_video_id } = await chrome.storage.local.get([
+          "current_video_id",
+        ]);
+        console.log("🔵 Background Script: Session state:", {
+          hasVideoId: !!current_video_id,
+          videoId: current_video_id,
+          receivedIndex: request.index,
+          timestamp: new Date().toISOString(),
+        });
+
+        // Convert base64 back to Blob
+        const base64Response = await fetch(request.chunk.data);
+        const blob = await base64Response.blob();
+
+        // Create new blob with original MIME type
+        const blobWithCodec = new Blob([blob], {
+          type: request.chunk.type, // Use original type with codecs
+        });
+
+        console.log("🔵 Background Script: Reconstructed Blob:", {
+          originalType: request.chunk.type,
+          finalType: blobWithCodec.type,
+          originalSize: blob.size,
+          finalSize: blobWithCodec.size,
+          isBlob: blobWithCodec instanceof Blob,
+        });
+
+        // Verify data integrity
+        if (Math.abs(blob.size - request.chunk.base64Size) > 100) {
+          console.warn(
+            "🔴 Background Script: ⚠️ Possible data loss in transmission!"
+          );
+          throw new Error("Data integrity check failed");
+        }
+        console.log(
+          "🔵 Background Script: Data integrity verified successfully!"
+        );
+
+        // Get current video ID
+        // const { current_video_id } = await chrome.storage.local.get([
+        //   "current_video_id",
+        // ]);
+        console.log(
+          "🔵 Background Script: Current video ID:",
+          current_video_id
+        );
+
+        if (!current_video_id) {
+          console.error(
+            "🔴 Background Script: No video ID found for segment",
+            request.index
+          );
+          throw new Error("No video ID found");
+        }
+
+        // Track segment
+        console.log(
+          `🔵 Background Script: Calling API for segment ${
+            request.index
+          } (will be segment ${request.index + 1})`
+        );
+        const trackResponse = await trackSegment(
+          current_video_id,
+          request.index + 1
+        );
+
+        console.log(
+          "🔵 Background Script: API Response for segment",
+          request.index,
+          ":",
+          trackResponse
+        );
+
+        if (!trackResponse || !trackResponse.presigned_url) {
+          throw new Error("Failed to get presigned URL for segment");
+        }
+
+        // 2. Upload to S3 using presigned URL from response
+        console.log(
+          `🔵 Background Script: Uploading segment to S3: ${trackResponse.segment_id}`
+        );
+        const uploadSuccess = await uploadSegmentToS3(
+          blobWithCodec,
+          trackResponse.presigned_url
+        );
+
+        if (!uploadSuccess) {
+          throw new Error("Failed to upload segment to S3");
+        }
+
+        console.log(
+          `🔵 Background Script: Successfully uploaded segment ${trackResponse.segment_id}`
+        );
+
+        if (sendResponse) {
+          sendResponse({
+            received: true,
+            uploaded: true,
+            segment_id: trackResponse.segment_id,
+          });
+        }
+      } catch (error) {
+        console.error(
+          "🔴 Background Script: Error handling segment:",
+          error.message
+        );
+        if (sendResponse) {
+          sendResponse({ error: error.message });
+        }
+      }
+    })();
+    return true;
   }
 });
 
 // self.addEventListener("message", (event) => {
 //   handleMessage(event.data);
 // });
+
+const uploadSegmentToS3 = async (blob, presignedUrl) => {
+  try {
+    console.log("🔵 Background Script: -------- S3 Upload Started --------");
+
+    console.log("🔵 Background Script: Upload Details:", {
+      presignedUrl: presignedUrl.substring(0, 100) + "...", // Truncate for readability
+      chunkSize: `${(blob.size / 1024 / 1024).toFixed(2)}MB`,
+      mimeType: blob.type,
+      blobSize: blob.size,
+    });
+
+    // Use presigned URL from API response
+    const response = await fetch(presignedUrl, {
+      method: "PUT",
+      body: blob,
+      headers: {
+        "Content-Type": blob.type,
+      },
+    });
+
+    console.log("🔵 Background Script: S3 Response:", {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers),
+      uploadedSize: blob.size,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("🔴 Background Script: Upload Failed:", errorText);
+      throw new Error(
+        `S3 upload failed: ${response.status} ${response.statusText}`
+      );
+    }
+
+    console.log("🔵 Background Script: Upload successful!");
+    return true;
+  } catch (error) {
+    console.error("🔴 Background Script: S3 Upload Error:", error);
+    return false;
+  }
+};
+
+const trackSegment = async (videoId, segmentNumber) => {
+  try {
+    console.log("🔵 Background Script: -------- Tracking Segment --------");
+    console.log(
+      `🔵 Background Script: Tracking segment number: ${segmentNumber}`
+    );
+    console.log(`🔵 Background Script: For video ID: ${videoId}`);
+
+    const idToken = process.env.ID_TOKEN;
+    const API_BASE_URL = process.env.API_BASE_URL;
+
+    const response = await fetch(`${API_BASE_URL}/recording-segments`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        videoId,
+        segmentNumber,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(
+        `🔴 Background Script: Failed to track segment ${segmentNumber}`
+      );
+      console.error(
+        `🔴 Background Script: Response status: ${response.status}`
+      );
+      throw new Error("Failed to track segment");
+    }
+
+    const responseData = await response.json();
+    console.log("🔵 Background Script: Segment tracked successfully:", {
+      segmentId: responseData.segment_id,
+      uploadPath: responseData.upload_path,
+      segmentNumber: segmentNumber,
+    });
+
+    return responseData;
+  } catch (error) {
+    console.error("🔴 Background Script: Track Segment Error:", error);
+    console.error("🔴 Background Script: Full error details:", {
+      message: error.message,
+      stack: error.stack,
+    });
+    return null;
+  }
+};
