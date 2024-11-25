@@ -104,38 +104,43 @@ const Recorder = () => {
         videoBitsPerSecond = 500000;
       }
 
-      // List all mimeTypes
+      // Update MIME types to be WebM-first
       const mimeTypes = [
-        "video/webm;codecs=avc1",
-        "video/webm;codecs=vp8,opus",
-        "video/webm;codecs=vp9,opus",
-        "video/webm;codecs=vp9",
-        "video/webm;codecs=vp8",
-        "video/webm;codecs=h264",
-        "video/webm",
+        "video/webm;codecs=vp8,opus", // Most widely supported
+        "video/webm;codecs=vp9,opus", // Better quality
+        "video/webm;codecs=h264,opus", // H.264 fallback
+        "video/webm", // Last resort
       ];
 
-      // Check if the browser supports any of the mimeTypes, make sure to select the first one that is supported from the list
-      let mimeType = mimeTypes.find((mimeType) =>
-        MediaRecorder.isTypeSupported(mimeType)
+      // Debug: log supported types
+      console.log("🟡 Recorder: Checking supported MIME types:");
+      mimeTypes.forEach((type) => {
+        console.log(
+          `🟡 Recorder: ${type} supported:`,
+          MediaRecorder.isTypeSupported(type)
+        );
+      });
+
+      let mimeType = mimeTypes.find((type) =>
+        MediaRecorder.isTypeSupported(type)
       );
+      console.log("🟡 Recorder: Selected MIME type:", mimeType);
 
-      // If no mimeType is supported, throw an error
-      if (!mimeType) {
-        chrome.runtime.sendMessage({
-          type: "recording-error",
-          error: "stream-error",
-          why: "No supported mimeTypes available",
-        });
-        return;
-      }
-
+      // Initialize MediaRecorder with selected MIME type
       recorder.current = new MediaRecorder(liveStream.current, {
         mimeType: mimeType,
         audioBitsPerSecond: audioBitsPerSecond,
         videoBitsPerSecond: videoBitsPerSecond,
       });
+
+      console.log("🟡 Recorder: MediaRecorder initialized with:", {
+        mimeType: recorder.current.mimeType,
+        state: recorder.current.state,
+        videoBitsPerSecond,
+        audioBitsPerSecond,
+      });
     } catch (err) {
+      console.error("🔴 Recorder: Error initializing recorder:", err);
       chrome.runtime.sendMessage({
         type: "recording-error",
         error: "stream-error",
@@ -154,7 +159,6 @@ const Recorder = () => {
 
     try {
       console.log("🟡 Recorder: Starting recording with index:", index.current);
-      console.log(`🟡 Recorder: Started at: ${new Date().toISOString()}`);
       recorder.current.start(5000);
     } catch (err) {
       chrome.runtime.sendMessage({
@@ -179,9 +183,17 @@ const Recorder = () => {
     const checkMaxMemory = () => {
       try {
         navigator.storage.estimate().then((data) => {
-          const minMemory = 26214400;
+          // Increase minimum memory threshold to 50MB
+          const minMemory = 52428800;
+          const remainingSpace = data.quota - data.usage;
+
           // Check if there's enough space to keep recording
-          if (data.quota < minMemory) {
+          if (remainingSpace < minMemory) {
+            console.log("🎥 Memory limit reached, stopping recording");
+            
+            // Clear chunks store before stopping
+            chunksStore.clear();
+            
             chrome.storage.local.set({
               recording: false,
               restarting: false,
@@ -206,76 +218,63 @@ const Recorder = () => {
       if (e.data.size > 0 && e.timecode) {
         try {
           const timestamp = e.timecode;
-          console.log("🟡 Recorder: -------- Chunk Check --------");
-          console.log(`🟡 Recorder: Current index: ${index.current}`);
-          console.log(`🟡 Recorder: Chunk size: ${e.data.size}`);
-          console.log(`🟡 Recorder: Time since start: ${timestamp}ms`);
-          console.log(
-            `🟡 Recorder: Has video_id in storage?`,
-            await chrome.storage.local.get(["current_video_id"])
-          );
-
-          if (hasChunks.current === false) {
-            hasChunks.current = true;
-            lastTimecode.current = timestamp;
-            console.log("First chunk received");
-          } else if (timestamp < lastTimecode.current) {
-            // This is a duplicate chunk, ignore it
-            console.log("Duplicate chunk detected, skipping");
-            return;
-          } else {
-            lastTimecode.current = timestamp;
-          }
-
-          // Store in IndexedDB first
-          await chunksStore.setItem(`chunk_${index.current}`, {
+          console.log("🎥 Recorder: Processing chunk:", {
             index: index.current,
-            chunk: e.data,
-            timestamp: timestamp,
+            size: e.data.size,
+            type: e.data.type,
+            isFirstChunk: index.current === 0,
+            isFinalChunk: isFinishing.current,
+            timestamp
           });
 
-          // Convert Blob to base64 string
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64data = reader.result;
-            console.log("🟡 Recorder: About to send chunk:", {
-              index: index.current,
-              isFirstChunk: index.current === 0,
-              timestamp: new Date().toISOString(),
-            });
+          // Store chunk in IndexedDB
+          const chunkKey = `chunk_${index.current}`;
+          console.log("🎥 Recorder: Storing chunk in IndexedDB:", { chunkKey });
+          
+          await chunksStore.setItem(chunkKey, {
+            data: e.data,
+            type: e.data.type,
+            size: e.data.size,
+            timestamp: timestamp
+          });
 
-            chrome.runtime.sendMessage(
-              {
-                type: "upload-segment",
-                chunk: {
-                  data: base64data,
-                  type: e.data.type,
-                  base64Size: base64data.length,
-                },
-                index: index.current,
-                timestamp: timestamp,
-              },
-              (response) => {
-                console.log(
-                  "🟡 Recorder: Background response for segment",
-                  index.current,
-                  ":",
-                  response
-                );
-                // Only increment after successful send
-                index.current++;
+          console.log("🎥 Recorder: Successfully stored chunk in IndexedDB");
+
+          // Send only metadata to background
+          chrome.runtime.sendMessage({
+            type: "upload-segment",
+            chunkInfo: {
+              key: chunkKey,
+              index: index.current,
+              type: e.data.type,
+              size: e.data.size,
+              timestamp: timestamp,
+              isFinalChunk: isFinishing.current
+            }
+          }, (response) => {
+            if (response && response.uploaded) {
+              console.log("🎥 Recorder: Background confirmed upload for chunk:", index.current);
+              
+              // Clean up IndexedDB after successful upload
+              chunksStore.removeItem(chunkKey)
+                .then(() => console.log("🎥 Recorder: Cleaned up chunk from IndexedDB:", chunkKey))
+                .catch(err => console.error("🔴 Recorder: Error cleaning up chunk:", err));
+
+              // Only increment after successful send
+              index.current++;
+
+              // If this was the final chunk and upload was successful
+              if (isFinishing.current) {
+                console.log("🎥 Recorder: Final chunk uploaded, sending video-ready");
+                chrome.runtime.sendMessage({ type: "video-ready" });
               }
-            );
-          };
-          reader.readAsDataURL(e.data);
+            } else {
+              console.error("🔴 Recorder: Upload failed for chunk:", index.current);
+            }
+          });
 
-          if (backupRef.current) {
-            chrome.runtime.sendMessage({
-              type: "write-file",
-              index: index.current,
-            });
-          }
         } catch (err) {
+          console.error("🟡 Recorder: Error handling chunk:", err);
           chrome.storage.local.set({
             recording: false,
             restarting: false,
@@ -302,9 +301,8 @@ const Recorder = () => {
       }
     };
 
-    recorder.current.ondataavailable = async (e) => {
-      await handleDataAvailable(e);
-    };
+    recorder.current.ondataavailable = handleDataAvailable;
+    console.log("🟡 Recorder: Event handlers attached");
 
     liveStream.current.getVideoTracks()[0].onended = () => {
       chrome.storage.local.set({
@@ -326,13 +324,25 @@ const Recorder = () => {
   }
 
   async function stopRecording() {
+    console.log("🟡 Recorder: Stopping recording...");
+    console.log("🟡 Recorder: Current index:", index.current);
+
     isFinishing.current = true;
+
     if (recorder.current !== null) {
-      recorder.current.stop();
-      recorder.current = null;
+      console.log("🟡 Recorder: Stopping MediaRecorder");
+      try {
+        // This will trigger one final dataavailable event
+        recorder.current.stop();
+        recorder.current = null;
+      } catch (err) {
+        console.error("🟡 Recorder: Error stopping recorder:", err);
+      }
     }
 
+    // Stop all tracks
     if (liveStream.current !== null) {
+      console.log("🟡 Recorder: Stopping live stream tracks");
       liveStream.current.getTracks().forEach(function (track) {
         track.stop();
       });
