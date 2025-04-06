@@ -1,6 +1,6 @@
 {
-  "name": "screenity",
-  "version": "3.0.0",
+  "name": "propels-screen-recorder",
+  "version": "0.0.1",
   "description": "The free and privacy-friendly screen recorder with no limits",
   "scripts": {
     "build": "node utils/build.js",
