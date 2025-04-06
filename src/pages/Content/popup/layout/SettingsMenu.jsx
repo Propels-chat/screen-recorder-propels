@@ -162,8 +162,7 @@ const SettingsMenu = (props) => {
           .then((response) => {
             setRestore(response.restore);
           });
-      }}
-    >
+      }}>
       <DropdownMenu.Trigger asChild>
         <button className="IconButton" aria-label="Customise options">
           <MoreIconPopup />
@@ -173,8 +172,7 @@ const SettingsMenu = (props) => {
       <DropdownMenu.Portal
         container={props.shadowRef.current.shadowRoot.querySelector(
           ".container"
-        )}
-      >
+        )}>
         <DropdownMenu.Content className="DropdownMenuContent" sideOffset={5}>
           <DropdownMenu.Sub
             open={openResize}
@@ -184,15 +182,14 @@ const SettingsMenu = (props) => {
                 setOpenQuality(false);
               }
               setOpenResize(open);
-            }}
-          >
-            <DropdownMenu.SubTrigger className="DropdownMenuItem">
+            }}>
+            {/* <DropdownMenu.SubTrigger className="DropdownMenuItem">
               {chrome.i18n.getMessage("resizeWindowLabel")}
               <div className="ItemIndicatorArrow">
                 <img src={DropdownGroup} />
               </div>
-            </DropdownMenu.SubTrigger>
-            <DropdownMenu.Portal>
+            </DropdownMenu.SubTrigger> */}
+            {/* <DropdownMenu.Portal>
               <DropdownMenu.SubContent
                 className="ScreenityDropdownMenuContent"
                 sideOffset={0}
@@ -325,7 +322,7 @@ const SettingsMenu = (props) => {
                   </DropdownMenu.Item>
                 </TooltipWrap>
               </DropdownMenu.SubContent>
-            </DropdownMenu.Portal>
+            </DropdownMenu.Portal> */}
           </DropdownMenu.Sub>
           <DropdownMenu.Sub
             open={openQuality}
@@ -335,8 +332,7 @@ const SettingsMenu = (props) => {
                 setOpenResize(false);
               }
               setOpenQuality(open);
-            }}
-          >
+            }}>
             <DropdownMenu.SubTrigger className="DropdownMenuItem">
               {chrome.i18n.getMessage("maxResolutionLabel") +
                 " (" +
@@ -350,8 +346,7 @@ const SettingsMenu = (props) => {
               <DropdownMenu.SubContent
                 className="ScreenityDropdownMenuContent"
                 sideOffset={0}
-                alignOffset={-3}
-              >
+                alignOffset={-3}>
                 <DropdownMenu.RadioGroup
                   value={contentState.qualityValue}
                   onValueChange={(value) => {
@@ -362,20 +357,18 @@ const SettingsMenu = (props) => {
                     chrome.storage.local.set({
                       qualityValue: value,
                     });
-                  }}
-                >
+                  }}>
                   <TooltipWrap
                     content={
                       RAM < 8 || width < 3840 || height < 2160
                         ? chrome.i18n.getMessage("maxResolutionTooltip")
                         : ""
-                    }
-                  >
+                    }>
                     <DropdownMenu.RadioItem
                       className="ScreenityDropdownMenuItem"
                       value="4k"
-                      disabled={RAM < 8 || width < 3840 || height < 2160}
-                    >
+                      disabled={true}
+                      style={{ opacity: 0.5, cursor: "not-allowed" }}>
                       4k
                       <DropdownMenu.ItemIndicator className="ScreenityItemIndicator">
                         <img src={CheckWhiteIcon} />
@@ -387,13 +380,12 @@ const SettingsMenu = (props) => {
                       RAM < 4 || width < 1920 || height < 1080
                         ? chrome.i18n.getMessage("maxResolutionTooltip")
                         : ""
-                    }
-                  >
+                    }>
                     <DropdownMenu.RadioItem
                       className="ScreenityDropdownMenuItem"
                       value="1080p"
-                      disabled={RAM < 4 || width < 1920 || height < 1080}
-                    >
+                      disabled={true}
+                      style={{ opacity: 0.5, cursor: "not-allowed" }}>
                       1080p
                       <DropdownMenu.ItemIndicator className="ScreenityItemIndicator">
                         <img src={CheckWhiteIcon} />
@@ -405,13 +397,11 @@ const SettingsMenu = (props) => {
                       RAM < 2 || width < 1280 || height < 720
                         ? chrome.i18n.getMessage("maxResolutionTooltip")
                         : ""
-                    }
-                  >
+                    }>
                     <DropdownMenu.RadioItem
                       className="ScreenityDropdownMenuItem"
                       value="720p"
-                      disabled={RAM < 2 || width < 1280 || height < 720}
-                    >
+                      disabled={RAM < 2 || width < 1280 || height < 720}>
                       720p
                       <DropdownMenu.ItemIndicator className="ScreenityItemIndicator">
                         <img src={CheckWhiteIcon} />
@@ -421,7 +411,8 @@ const SettingsMenu = (props) => {
                   <DropdownMenu.RadioItem
                     className="ScreenityDropdownMenuItem"
                     value="480p"
-                  >
+                    disabled={true}
+                    style={{ opacity: 0.5, cursor: "not-allowed" }}>
                     480p
                     <DropdownMenu.ItemIndicator className="ScreenityItemIndicator">
                       <img src={CheckWhiteIcon} />
@@ -430,7 +421,8 @@ const SettingsMenu = (props) => {
                   <DropdownMenu.RadioItem
                     className="ScreenityDropdownMenuItem"
                     value="360p"
-                  >
+                    disabled={true}
+                    style={{ opacity: 0.5, cursor: "not-allowed" }}>
                     360p
                     <DropdownMenu.ItemIndicator className="ScreenityItemIndicator">
                       <img src={CheckWhiteIcon} />
@@ -439,7 +431,8 @@ const SettingsMenu = (props) => {
                   <DropdownMenu.RadioItem
                     className="ScreenityDropdownMenuItem"
                     value="240p"
-                  >
+                    disabled={true}
+                    style={{ opacity: 0.5, cursor: "not-allowed" }}>
                     240p
                     <DropdownMenu.ItemIndicator className="ScreenityItemIndicator">
                       <img src={CheckWhiteIcon} />
@@ -562,14 +555,13 @@ const SettingsMenu = (props) => {
                 systemAudio: checked,
               });
             }}
-            checked={contentState.systemAudio}
-          >
+            checked={contentState.systemAudio}>
             {chrome.i18n.getMessage("systemAudioLabel")}
             <DropdownMenu.ItemIndicator className="ItemIndicator">
               <img src={CheckWhiteIcon} />
             </DropdownMenu.ItemIndicator>
           </DropdownMenu.CheckboxItem>
-          {!oldChrome && (
+          {/* {!oldChrome && (
             <DropdownMenu.CheckboxItem
               className="DropdownMenuItem"
               onSelect={(e) => {
@@ -589,33 +581,30 @@ const SettingsMenu = (props) => {
                   backupSetup: false,
                 });
               }}
-              checked={contentState.backup}
-            >
+              checked={contentState.backup}>
               {chrome.i18n.getMessage("backupsToggle")}
               <DropdownMenu.ItemIndicator className="ItemIndicator">
                 <img src={CheckWhiteIcon} />
               </DropdownMenu.ItemIndicator>
             </DropdownMenu.CheckboxItem>
-          )}
+          )} */}
           <DropdownMenu.Item
             className="DropdownMenuItem"
             onSelect={(e) => {
               e.preventDefault();
               chrome.runtime.sendMessage({ type: "restore-recording" });
             }}
-            disabled={!restore}
-          >
+            disabled={!restore}>
             {chrome.i18n.getMessage("restoreRecording")}
           </DropdownMenu.Item>
-          <DropdownMenu.Item
+          {/* <DropdownMenu.Item
             className="DropdownMenuItem"
             onSelect={(e) => {
               e.preventDefault();
               handleTroubleshooting();
-            }}
-          >
+            }}>
             {chrome.i18n.getMessage("downloadForTroubleshootingOption")}
-          </DropdownMenu.Item>
+          </DropdownMenu.Item> */}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>

@@ -279,8 +279,7 @@ const PopupContainer = (props) => {
         bottom: 0,
         width: "100vw",
         height: "100vh",
-      }}
-    >
+      }}>
       <div className={"ToolbarBounds" + " " + shake}></div>
       <Rnd
         default={{
@@ -295,17 +294,16 @@ const PopupContainer = (props) => {
         onDragStart={handleDragStart}
         onDrag={handleDrag}
         onDragStop={handleDrop}
-        ref={DragRef}
-      >
+        ref={DragRef}>
         <div className="popup-container" ref={PopupRef}>
           <div
-            className={open ? "popup-drag-head" : "popup-drag-head drag-area"}
-          ></div>
+            className={
+              open ? "popup-drag-head" : "popup-drag-head drag-area"
+            }></div>
           <div
             className={
               open ? "popup-controls open" : "popup-controls drag-area"
-            }
-          >
+            }>
             <SettingsMenu
               shadowRef={props.shadowRef}
               open={open}
@@ -326,8 +324,7 @@ const PopupContainer = (props) => {
                   ...prevContentState,
                   showExtension: false,
                 }));
-              }}
-            >
+              }}>
               <CloseIconPopup />
             </div>
           </div>
@@ -341,21 +338,18 @@ const PopupContainer = (props) => {
               <Tabs.Root
                 className="TabsRoot tl"
                 defaultValue="record"
-                onValueChange={onValueChange}
-              >
+                onValueChange={onValueChange}>
                 <Tabs.List
                   className="TabsList tl"
                   data-value={tab}
                   aria-label="Manage your account"
-                  tabIndex={0}
-                >
+                  tabIndex={0}>
                   <div className="pill-anim" ref={pillRef}></div>
                   <Tabs.Trigger
                     className="TabsTrigger tl"
                     value="record"
                     ref={recordTabRef}
-                    tabIndex={0}
-                  >
+                    tabIndex={0}>
                     <div className="TabsTriggerIcon">
                       <img
                         src={
@@ -365,7 +359,7 @@ const PopupContainer = (props) => {
                     </div>
                     {chrome.i18n.getMessage("recordTab")}
                   </Tabs.Trigger>
-                  <Tabs.Trigger
+                  {/* <Tabs.Trigger
                     className="TabsTrigger tl"
                     value="dashboard"
                     ref={videoTabRef}
@@ -381,7 +375,7 @@ const PopupContainer = (props) => {
                       />
                     </div>
                     {chrome.i18n.getMessage("videosTab")}
-                  </Tabs.Trigger>
+                  </Tabs.Trigger> */}
                 </Tabs.List>
                 <Tabs.Content className="TabsContent tl" value="record">
                   <RecordingTab shadowRef={props.shadowRef} />
