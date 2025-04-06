@@ -40,9 +40,9 @@ const Setup = () => {
     <div className="setupBackground">
       {!setupComplete && (
         <div className="setupContainer">
-          <div className="setupImage">
+          {/* <div className="setupImage">
             <img src={chrome.runtime.getURL("assets/helper/pin.gif")} />
-          </div>
+          </div> */}
           <div className="setupText">
             <div className="setupEmoji">👋</div>
             <div className="setupTitle">
@@ -69,9 +69,7 @@ const Setup = () => {
                 {chrome.i18n.getMessage("setupStep3Before")}
                 <span>
                   <img
-                    src={chrome.runtime.getURL(
-                      "assets/helper/mini-icon.png"
-                    )}
+                    src={chrome.runtime.getURL("assets/helper/mini-icon.png")}
                   />
                 </span>
                 {chrome.i18n.getMessage("setupStep3After")}
