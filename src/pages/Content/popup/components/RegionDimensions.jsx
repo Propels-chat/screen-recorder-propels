@@ -15,13 +15,18 @@ const RegionDimensions = () => {
       return;
     }
 
+    // Calculate height to maintain 9:16 ratio
+    const height = Math.round(value * (16 / 9));
+
     setContentState((prevContentState) => ({
       ...prevContentState,
       regionWidth: value,
+      regionHeight: height,
       fromRegion: false,
     }));
     chrome.storage.local.set({
       regionWidth: value,
+      regionHeight: height,
     });
   };
 
@@ -34,13 +39,18 @@ const RegionDimensions = () => {
       return;
     }
 
+    // Calculate width to maintain 9:16 ratio
+    const width = Math.round(value * (9 / 16));
+
     setContentState((prevContentState) => ({
       ...prevContentState,
       regionHeight: value,
+      regionWidth: width,
       fromRegion: false,
     }));
     chrome.storage.local.set({
       regionHeight: value,
+      regionWidth: width,
     });
   };
 
@@ -55,13 +65,19 @@ const RegionDimensions = () => {
           onChange={(e) => handleWidth(e)}
           onBlur={(e) => {
             if (e.target.value === "") {
+              // Default width from ContentState.jsx
+              const defaultWidth = 414;
+              const defaultHeight = 736;
+
               setContentState((prevContentState) => ({
                 ...prevContentState,
-                regionWidth: 100,
+                regionWidth: defaultWidth,
+                regionHeight: defaultHeight,
                 fromRegion: false,
               }));
               chrome.storage.local.set({
-                regionWidth: 100,
+                regionWidth: defaultWidth,
+                regionHeight: defaultHeight,
               });
             }
           }}
@@ -78,13 +94,19 @@ const RegionDimensions = () => {
           onChange={(e) => handleHeight(e)}
           onBlur={(e) => {
             if (e.target.value === "") {
+              // Default width from ContentState.jsx
+              const defaultWidth = 414;
+              const defaultHeight = 736;
+
               setContentState((prevContentState) => ({
                 ...prevContentState,
-                regionHeight: 100,
+                regionHeight: defaultHeight,
+                regionWidth: defaultWidth,
                 fromRegion: false,
               }));
               chrome.storage.local.set({
-                regionHeight: 100,
+                regionHeight: defaultHeight,
+                regionWidth: defaultWidth,
               });
             }
           }}

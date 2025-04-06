@@ -19,6 +19,19 @@ import { contentStateContext } from "../../context/ContentState";
 const RecordingTab = (props) => {
   const [contentState, setContentState] = useContext(contentStateContext);
 
+  useEffect(() => {
+    // Resize browser window to be slightly larger than our target recording area
+    // Add extra space for browser chrome/controls
+    const windowWidth = 478; // 414 + margin for browser UI
+    const windowHeight = 850; // 414 + space for address bar, tabs, etc.
+
+    chrome.runtime.sendMessage({
+      type: "resize-window",
+      width: windowWidth,
+      height: windowHeight,
+    });
+  }, []);
+
   const onValueChange = (tab) => {
     setContentState((prevContentState) => ({
       ...prevContentState,
@@ -37,16 +50,19 @@ const RecordingTab = (props) => {
     <div className="recording-ui">
       <Tabs.Root
         className="TabsRoot"
-        defaultValue="screen"
+        defaultValue="region"
         onValueChange={onValueChange}
-        value={contentState.recordingType}
-      >
+        value={contentState.recordingType}>
         <Tabs.List
           className="TabsList"
           aria-label="Manage your account"
-          tabIndex={0}
-        >
-          <Tabs.Trigger className="TabsTrigger" value="screen" tabIndex={0}>
+          tabIndex={0}>
+          <Tabs.Trigger
+            className="TabsTrigger"
+            value="screen"
+            tabIndex={0}
+            disabled
+            style={{ pointerEvents: "none", opacity: 0.5 }}>
             <div className="TabsTriggerLabel">
               <div className="TabsTriggerIcon">
                 <img
@@ -74,7 +90,12 @@ const RecordingTab = (props) => {
               <span>{chrome.i18n.getMessage("tabType")}</span>
             </div>
           </Tabs.Trigger>
-          <Tabs.Trigger className="TabsTrigger" value="camera" tabIndex={0}>
+          <Tabs.Trigger
+            className="TabsTrigger"
+            value="camera"
+            tabIndex={0}
+            disabled
+            style={{ pointerEvents: "none", opacity: 0.5 }}>
             <div className="TabsTriggerLabel">
               <div className="TabsTriggerIcon">
                 <img
@@ -93,8 +114,7 @@ const RecordingTab = (props) => {
             value="mockup"
             tabIndex={0}
             disabled
-            style={{ pointerEvents: "none", opacity: 0.5 }}
-          >
+            style={{ pointerEvents: "none", opacity: 0.5 }}>
             <div className="TabsTriggerLabel">
               <div className="TabsTriggerIcon">
                 <img

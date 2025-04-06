@@ -639,11 +639,11 @@ const ContentState = (props) => {
     showExtension: false,
     showPopup: false,
     blurMode: false,
-    recordingType: "screen",
-    customRegion: false,
-    regionWidth: 800,
+    recordingType: "region",
+    customRegion: true,
+    regionWidth: 414,
     surface: "default",
-    regionHeight: 500,
+    regionHeight: 736,
     regionX: 100,
     regionY: 100,
     fromRegion: false,
@@ -806,13 +806,13 @@ const ContentState = (props) => {
   useEffect(() => {
     if (contentState.recording && !contentState.paused && !contentState.alarm) {
       const TIME_LIMIT = 360;
-      
+
       // Check if already at limit
       if (timer >= TIME_LIMIT) {
         stopRecording();
         return;
       }
-      
+
       setTimer((timer) => timer + 1);
       const interval = setInterval(() => {
         setTimer((prevTimer) => {
@@ -824,7 +824,7 @@ const ContentState = (props) => {
           return prevTimer + 1;
         });
       }, 1000);
-      
+
       return () => clearInterval(interval);
     } else if (
       contentState.alarm &&
@@ -1536,6 +1536,26 @@ const ContentState = (props) => {
           chrome.runtime.sendMessage({ type: "backgroundEffectsActive" });
         }
 
+        // Set default values for our settings if they're not already set
+        if (
+          result.recordingType === undefined ||
+          result.recordingType === null
+        ) {
+          chrome.storage.local.set({ recordingType: "region" });
+        }
+
+        if (result.customRegion === undefined || result.customRegion === null) {
+          chrome.storage.local.set({ customRegion: true });
+        }
+
+        if (result.regionWidth === undefined || result.regionWidth === null) {
+          chrome.storage.local.set({ regionWidth: 414 });
+        }
+
+        if (result.regionHeight === undefined || result.regionHeight === null) {
+          chrome.storage.local.set({ regionHeight: 736 });
+        }
+
         if (check) {
           checkRecording(id);
         }
@@ -1566,8 +1586,7 @@ const ContentState = (props) => {
   return (
     // this is the provider providing state
     <contentStateContext.Provider
-      value={[contentState, setContentState, timer, setTimer]}
-    >
+      value={[contentState, setContentState, timer, setTimer]}>
       {props.children}
       <Shortcuts shortcuts={contentState.shortcuts} />
     </contentStateContext.Provider>
