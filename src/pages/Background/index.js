@@ -1,4 +1,4 @@
-import saveToDrive from "./modules/saveToDrive";
+import saveToDrive, { getCognitoToken } from "./modules/saveToDrive";
 
 import {
   sendMessageTab,
@@ -121,6 +121,85 @@ const startRecording = async () => {
     chrome.alarms.create("recording-alarm", { delayInMinutes: seconds / 60 });
   }
 };
+
+// const refreshTokenInBackground = async () => {
+//   console.log('🔄 Checking current ID token...');
+//   let currentToken;
+//   try {
+//     const tokens = await getCognitoToken();
+//     console.log('Current ID token exists:', !!tokens.idToken);
+//     if (tokens.idToken) {
+//       console.log('Current ID token:', tokens.idToken);
+//     }
+//     currentToken = tokens.idToken;
+//   } catch (error) {
+//     console.log('No current ID token found');
+//   }
+
+//   console.log('🔄 Creating background tab for token refresh...');
+//   return new Promise((resolve, reject) => {
+//     chrome.tabs.create(
+//       {
+//         url: `https://${process.env.DASHBOARD_URL}/dashboard`,
+//         active: false,
+//         pinned: true,
+//         index: 0  // Position it as the leftmost tab
+//       },
+//       async (tab) => {
+//         console.log('🔄 Tab created, waiting for page load...');
+//         let pageLoaded = false;
+
+//         const listener = (tabId, changeInfo) => {
+//           if (tabId === tab.id && changeInfo.status === 'complete') {
+//             console.log('🔄 Page loaded completely at:', new Date().toISOString());
+//             pageLoaded = true;
+//             chrome.tabs.onUpdated.removeListener(listener);
+
+//             // Wait for Amplify to refresh tokens
+//             console.log('🔄 Waiting 10 seconds for Amplify to refresh tokens...');
+//             setTimeout(async () => {
+//               try {
+//                 console.log('🔄 Checking for new ID token at:', new Date().toISOString());
+//                 const tokens = await getCognitoToken();
+//                 console.log('New ID token exists:', !!tokens.idToken);
+//                 if (tokens.idToken) {
+//                   console.log('New ID token:', tokens.idToken);
+//                 }
+//                 console.log('🔄 Token refresh complete');
+
+//                 // Compare if token changed
+//                 if (currentToken && tokens.idToken) {
+//                   console.log('ID token changed:', currentToken !== tokens.idToken);
+//                 }
+//               } catch (error) {
+//                 console.error('Failed to get new ID token:', error);
+//               }
+
+//               chrome.tabs.remove(tab.id);
+//               console.log('🔄 Cleanup: Background tab removed');
+//               resolve();
+//             }, 10000); // 10 seconds wait
+//           } else if (tabId === tab.id) {
+//             console.log('🔄 Page load status:', changeInfo.status, changeInfo);
+//           }
+//         };
+
+//         chrome.tabs.onUpdated.addListener(listener);
+
+//         // Cleanup after timeout
+//         setTimeout(() => {
+//           if (!pageLoaded) {
+//             console.log('⚠️ Page never finished loading after 20 seconds');
+//           }
+//           chrome.tabs.remove(tab.id);
+//           chrome.tabs.onUpdated.removeListener(listener);
+//           console.log('🔄 Timeout reached, tab removed');
+//           resolve(); // Resolve anyway to not block recording
+//         }, 20000); // 20 seconds timeout
+//       }
+//     );
+//   });
+// };
 
 // Detect commands
 chrome.commands.onCommand.addListener(async (command) => {
@@ -1340,136 +1419,19 @@ const handleSaveToDrive = async (sendResponse, request, fallback = false) => {
   }
 };
 
-const checkRecordingPermission = async () => {
-  try {
-    console.log("Background: Checking recording permission");
-    const idToken = process.env.ID_TOKEN;
-    const API_BASE_URL = process.env.API_BASE_URL;
-
-    const response = await fetch(`${API_BASE_URL}/subscription`, {
-      headers: {
-        Authorization: `Bearer ${idToken}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    console.log("Background: Got permission response");
-    console.info(response);
-
-    if (!response.ok) {
-      throw new Error("Failed to check recording permission");
-    }
-
-    const { can_record, upload_url, message } = await response.json();
-    console.log(
-      `Background: Permission check result - can_record: ${can_record}, message: ${message}`
-    );
-
-    // Store upload_url for later use
-    if (upload_url) {
-      await chrome.storage.local.set({ upload_url });
-    }
-
-    return { can_record, message };
-  } catch (error) {
-    console.error("Background: Permission check failed:", error);
-    return {
-      can_record: false,
-      message: "Failed to verify recording permissions",
-    };
-  }
-};
-
-// Add new function for starting recording session
-const startRecordingSession = async () => {
-  try {
-    console.log("🔵 Background Script: Starting recording session");
-    const idToken = process.env.ID_TOKEN;
-    const API_BASE_URL = process.env.API_BASE_URL;
-
-    const response = await fetch(`${API_BASE_URL}/start-screen-recording`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${idToken}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to start recording session");
-    }
-
-    const { video_id, upload_path, message } = await response.json();
-    console.log("🔵 Background Script: Session started:", {
-      videoId: video_id,
-      uploadPath: upload_path,
-      message: message,
-    });
-
-    // Store only video_id and upload_path
-    await chrome.storage.local.set({
-      current_video_id: video_id,
-      base_upload_path: upload_path,
-    });
-
-    return { success: true, message };
-  } catch (error) {
-    console.error("🔴 Background Script: Session start failed:", error);
-    return { success: false, message: "Failed to start recording session" };
-  }
-};
-
-// Modify desktopCapture to include session initialization
 const desktopCapture = async (request) => {
-  try {
-    // Check recording permission first
-    const { can_record, message } = await checkRecordingPermission();
-
-    if (!can_record) {
-      const activeTab = await getCurrentTab();
-      sendMessageTab(activeTab.id, {
-        type: "recording-error",
-        error: "subscription-error",
-        why: message,
-      });
-      return;
+  const { backup } = await chrome.storage.local.get(["backup"]);
+  const { backupSetup } = await chrome.storage.local.get(["backupSetup"]);
+  chrome.storage.local.set({ sendingChunks: false });
+  if (backup) {
+    if (!backupSetup) {
+      localDirectoryStore.clear();
     }
 
-    // Start recording session
-    const { success, message: sessionMessage } = await startRecordingSession();
-
-    if (!success) {
-      const activeTab = await getCurrentTab();
-      sendMessageTab(activeTab.id, {
-        type: "recording-error",
-        error: "session-error",
-        why: sessionMessage,
-      });
-      return;
-    }
-
-    // Continue with existing logic
-    const { backup } = await chrome.storage.local.get(["backup"]);
-    const { backupSetup } = await chrome.storage.local.get(["backupSetup"]);
-    chrome.storage.local.set({ sendingChunks: false });
-
-    if (backup) {
-      if (!backupSetup) {
-        localDirectoryStore.clear();
-      }
-      let activeTab = await getCurrentTab();
-      initBackup(request, activeTab.id);
-    } else {
-      offscreenDocument(request);
-    }
-  } catch (error) {
-    console.error("Background: Error in desktopCapture:", error);
-    const activeTab = await getCurrentTab();
-    sendMessageTab(activeTab.id, {
-      type: "recording-error",
-      error: "permission-check-failed",
-      why: error.message,
-    });
+    let activeTab = await getCurrentTab();
+    initBackup(request, activeTab.id);
+  } else {
+    offscreenDocument(request);
   }
 };
 
@@ -1494,81 +1456,11 @@ const writeFile = async (request) => {
   }
 };
 
-// Add new function for finish recording API call
-const finishRecording = async () => {
-  try {
-    console.log("🔵 Background Script: -------- Finishing Recording --------");
-    const { current_video_id } = await chrome.storage.local.get([
-      "current_video_id",
-    ]);
-
-    if (!current_video_id) {
-      console.error(
-        "🔴 Background Script: No video ID found for finishing recording"
-      );
-      return false;
-    }
-
-    console.log(
-      `🔵 Background Script: Finishing video ID: ${current_video_id}`
-    );
-
-    const idToken = process.env.ID_TOKEN;
-    const API_BASE_URL = process.env.API_BASE_URL;
-
-    const response = await fetch(`${API_BASE_URL}/finish-recording`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${idToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        videoId: current_video_id,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error("🔴 Background Script: Failed to finish recording");
-      console.error(
-        `🔴 Background Script: Response status: ${response.status}`
-      );
-      throw new Error("Failed to finish recording");
-    }
-
-    const responseData = await response.json();
-    console.log("🔵 Background Script: Recording finished successfully:", {
-      videoId: responseData.video_id,
-      segmentCount: responseData.segment_count,
-      message: responseData.message,
-    });
-
-    return true;
-  } catch (error) {
-    console.error("🔴 Background Script: Finish Recording Error:", error);
-    console.error("🔴 Background Script: Full error details:", {
-      message: error.message,
-      stack: error.stack,
-    });
-    return false;
-  }
-};
-
-// Modify existing videoReady function
 const videoReady = async () => {
-  console.log("🔵 Background Script: Video ready signal received");
-
   const { backupTab } = await chrome.storage.local.get(["backupTab"]);
   if (backupTab) {
     sendMessageTab(backupTab, { type: "close-writable" });
   }
-
-  // Call finish recording API before stopping
-  const finishSuccess = await finishRecording();
-  if (!finishSuccess) {
-    console.error("🔴 Background Script: Failed to finish recording properly");
-    // Continue with stopping recording anyway to clean up
-  }
-
   stopRecording();
 };
 
@@ -1942,215 +1834,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     );
   } else if (request.type === "add-alarm-listener") {
     addAlarmListener();
-  } else if (request.type === "upload-segment") {
-    (async () => {
-      try {
-        const { chunkInfo } = request;
-        console.log("🎬 Background: Received chunk info:", {
-          key: chunkInfo.key,
-          index: chunkInfo.index,
-          size: chunkInfo.size,
-          type: chunkInfo.type,
-        });
-
-        // Initialize chunksStore
-        const chunksStore = localforage.createInstance({
-          name: "chunks",
-        });
-
-        // Retrieve chunk from IndexedDB
-        console.log("🎬 Background: Retrieving chunk from IndexedDB:", chunkInfo.key);
-        const chunk = await chunksStore.getItem(chunkInfo.key);
-
-        if (!chunk) {
-          throw new Error(`Failed to retrieve chunk ${chunkInfo.key} from IndexedDB`);
-        }
-
-        console.log("🎬 Background: Successfully retrieved chunk:", {
-          retrievedSize: chunk.size,
-          expectedSize: chunkInfo.size,
-          type: chunk.type,
-        });
-
-        // Get current video ID
-        const { current_video_id } = await chrome.storage.local.get([
-          "current_video_id",
-        ]);
-
-        // Track segment to get upload URL
-        const trackResponse = await trackSegment(
-          current_video_id,
-          chunkInfo.index,
-          chunkInfo.index === 0,
-          chunk
-        );
-
-        if (!trackResponse) {
-          throw new Error("Failed to get presigned URL for segment");
-        }
-
-        console.log("🎬 Background: Got upload URL for chunk:", chunkInfo.index);
-
-        // Upload to S3
-        const uploadSuccess = await uploadSegmentToS3(
-          { data: chunk.data, size: chunk.size, type: chunk.type },
-          trackResponse.presigned_url
-        );
-
-        if (!uploadSuccess) {
-          throw new Error("Failed to upload segment to S3");
-        }
-
-        console.log("🎬 Background: Successfully uploaded segment:", {
-          index: chunkInfo.index,
-          segmentId: trackResponse.segment_id,
-          size: chunk.size,
-        });
-
-        if (sendResponse) {
-          sendResponse({
-            uploaded: true,
-            segment_id: trackResponse.segment_id,
-            isInitSegment: chunkInfo.index === 0,
-          });
-        }
-      } catch (error) {
-        console.error("🔴 Background Script: Error handling segment:", error);
-        if (sendResponse) {
-          sendResponse({ error: error.message });
-        }
-      }
-    })();
-    return true; // Keep the message channel open for async response
   }
 });
 
 // self.addEventListener("message", (event) => {
 //   handleMessage(event.data);
 // });
-
-const uploadSegmentToS3 = async (chunk, presignedUrl) => {
-  try {
-    console.log("🔵 Background Script: Starting S3 upload:", {
-      presignedUrl,
-      chunkType: chunk.type,
-      chunkSize: chunk.size
-    });
-
-    // Create blob directly from chunk data
-    const blob = new Blob([chunk.data], {
-      type: chunk.type,
-    });
-
-    console.log("🔵 Background Script: Blob reconstruction:", {
-      blobSize: blob.size,
-      originalSize: chunk.size,
-      type: blob.type,
-    });
-
-    // Verify blob reconstruction
-    if (blob.size !== chunk.size) {
-      console.error("🔴 Background Script: Blob size mismatch:", {
-        reconstructedSize: blob.size,
-        originalSize: chunk.size,
-        dataSize: chunk.data?.byteLength,
-      });
-      throw new Error("Blob reconstruction failed");
-    }
-
-    console.log("🔵 Background Script: Initiating fetch request to S3");
-    
-    const response = await fetch(presignedUrl, {
-      method: "PUT",
-      body: blob,
-      headers: {
-        "Content-Type": chunk.type,
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("🔴 Background Script: S3 upload failed:", {
-        status: response.status,
-        statusText: response.statusText,
-        errorResponse: errorText,
-        headers: Object.fromEntries(response.headers.entries())
-      });
-      throw new Error(`S3 upload failed: ${response.status} - ${errorText}`);
-    }
-
-    console.log("🔵 Background Script: S3 upload successful");
-    return true;
-  } catch (error) {
-    console.error("🔴 Background Script: Upload error:", {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
-    return false;
-  }
-};
-
-const trackSegment = async (videoId, segmentNumber, isInitSegment, chunk) => {
-  try {
-    // Convert to 1-based indexing for API
-    const apiSegmentNumber = segmentNumber + 1;
-
-    console.log("🔵 Background Script: Request payload:", {
-      videoId,
-      segmentNumber: apiSegmentNumber,
-      isInitializationSegment: isInitSegment,
-      mimeType: chunk.type, // Include actual MIME type
-    });
-
-    const API_BASE_URL = process.env.API_BASE_URL;
-    const idToken = process.env.ID_TOKEN;
-
-    const response = await fetch(`${API_BASE_URL}/recording-segments`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${idToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        videoId,
-        segmentNumber: apiSegmentNumber,
-        isInitializationSegment: isInitSegment,
-        mimeType: chunk.type, // Send actual MIME type
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("🔴 Background Script: API Error Response:", {
-        status: response.status,
-        statusText: response.statusText,
-        errorData: errorData,
-        requestPayload: {
-          videoId,
-          segmentNumber: apiSegmentNumber,
-          isInitializationSegment: isInitSegment,
-          mimeType: chunk.type,
-        },
-      });
-      throw new Error(`Failed to track segment: ${errorData}`);
-    }
-
-    const responseData = await response.json();
-    console.log("🔵 Background Script: Segment tracked successfully:", {
-      segmentId: responseData.segment_id,
-      uploadPath: responseData.upload_path,
-      segmentNumber: apiSegmentNumber,
-      mimeType: chunk.type,
-    });
-
-    return responseData;
-  } catch (error) {
-    console.error("🔴 Background Script: Track Segment Error:", error);
-    console.error("🔴 Background Script: Full error details:", {
-      message: error.message,
-      stack: error.stack,
-    });
-    return null;
-  }
-};
