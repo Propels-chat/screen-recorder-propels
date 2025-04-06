@@ -805,10 +805,26 @@ const ContentState = (props) => {
   // Count up every second
   useEffect(() => {
     if (contentState.recording && !contentState.paused && !contentState.alarm) {
+      const TIME_LIMIT = 360;
+      
+      // Check if already at limit
+      if (timer >= TIME_LIMIT) {
+        stopRecording();
+        return;
+      }
+      
       setTimer((timer) => timer + 1);
       const interval = setInterval(() => {
-        setTimer((timer) => timer + 1);
+        setTimer((prevTimer) => {
+          if (prevTimer >= TIME_LIMIT - 1) {
+            clearInterval(interval);
+            stopRecording();
+            return TIME_LIMIT;
+          }
+          return prevTimer + 1;
+        });
       }, 1000);
+      
       return () => clearInterval(interval);
     } else if (
       contentState.alarm &&
