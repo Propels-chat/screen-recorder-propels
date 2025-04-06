@@ -4,7 +4,7 @@ import localforage from "localforage";
 
 localforage.config({
   driver: localforage.INDEXEDDB,
-  name: "screenity",
+  name: "propels",
   version: 1,
 });
 

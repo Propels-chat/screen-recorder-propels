@@ -1,10 +1,10 @@
 {
   "extName": {
-    "message": "Screenity - Screen Recorder & Annotation Tool",
+    "message": "Propels Screen Recorder",
     "description": "Extension name"
   },
   "extDesc": {
-    "message": "The free and privacy-friendly screen recorder with no limits. Capture, annotate, edit videos and more - all with no sign in needed.",
+    "message": "Record once, Generate thousands of Tiktok-Style Outbound Sales Videos with AI",
     "description": "Extension description"
   },
   "recordTab": {
@@ -672,7 +672,7 @@
     "description": "Microphone muted modal cancel"
   },
   "setupTitle": {
-    "message": "Get started with Screenity in three simple steps:",
+    "message": "Get started with Propels in three simple steps:",
     "description": "Set up steps title"
   },
   "setupStep1Before": {
@@ -696,7 +696,7 @@
     "description": "Set up step 3, before the icon. It needs a space at the end."
   },
   "setupStep3After": {
-    "message": " Screenity icon to start",
+    "message": " Propels icon to start",
     "description": "Set up step 3, after the icon. It needs a space at the beginning."
   },
   "setupCompleteTitle": {

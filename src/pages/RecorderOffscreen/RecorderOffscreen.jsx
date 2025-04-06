@@ -3,7 +3,7 @@ import localforage from "localforage";
 
 localforage.config({
   driver: localforage.INDEXEDDB, // or choose another driver
-  name: "screenity", // optional
+  name: "propels", // optional
   version: 1, // optional
 });
 
@@ -182,7 +182,7 @@ const RecorderOffscreen = () => {
     const handleDataAvailable = async (e) => {
       checkMaxMemory();
 
-      if (e.data.size > 0) {
+      if (e.data.size > 0 && (e.timecode != null || e.timecode != undefined)) {
         try {
           const timestamp = e.timecode;
           if (hasChunks.current === false) {

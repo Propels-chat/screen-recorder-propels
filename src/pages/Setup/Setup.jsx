@@ -70,7 +70,7 @@ const Setup = () => {
                 <span>
                   <img
                     src={chrome.runtime.getURL(
-                      "assets/helper/mini-screenity.png"
+                      "assets/helper/mini-icon.png"
                     )}
                   />
                 </span>

@@ -3,7 +3,7 @@
   "name": "__MSG_extName__",
   "description": "__MSG_extDesc__",
   "default_locale": "en",
-  "version": "3.1.11",
+  "version": "0.0.1",
   "background": {
     "service_worker": "background.bundle.js"
   },
@@ -13,7 +13,11 @@
   "icons": {
     "128": "assets/img/icon-128.png"
   },
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "<all_urls>",
+    "https://*.amplifyapp.com/*",
+    "https://*.propels.ai/*"
+  ],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -93,7 +97,8 @@
     "downloads",
     "tabs",
     "tabCapture",
-    "scripting"
+    "scripting",
+    "cookies"
   ],
   "optional_permissions": ["offscreen", "desktopCapture", "alarms"]
 }
