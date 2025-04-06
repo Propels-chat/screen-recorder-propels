@@ -58,12 +58,12 @@ const Settings = () => {
           name="countdown"
           value="countdown"
         />
-        <Switch
+        {/* <Switch
           label={chrome.i18n.getMessage("alarmLabel")}
           name="alarm"
           value="alarm"
         />
-        {contentState.alarm && <TimeSetter />}
+        {contentState.alarm && <TimeSetter />} */}
         <Switch
           label={chrome.i18n.getMessage("micReminderPopup")}
           name="askMicrophone"

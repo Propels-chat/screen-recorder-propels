@@ -311,14 +311,14 @@ const PopupContainer = (props) => {
               open={open}
               setOpen={setOpen}
             />
-            <div
+            {/* <div
               style={{ marginBottom: "-4px", cursor: "pointer" }}
               onClick={() => {
                 window.open(URL, "_blank");
               }}
             >
               <HelpIconPopup />
-            </div>
+            </div> */}
             <div
               className="popup-control popup-close"
               onClick={() => {
@@ -392,7 +392,7 @@ const PopupContainer = (props) => {
               </Tabs.Root>
             )}
           </div>
-          {contentState.settingsOpen && (
+          {/* {contentState.settingsOpen && (
             <div
               className="HelpSection"
               onClick={() => {
@@ -404,7 +404,7 @@ const PopupContainer = (props) => {
               </span>
               {chrome.i18n.getMessage("helpPopup")}
             </div>
-          )}
+          )} */}
         </div>
       </Rnd>
     </div>
