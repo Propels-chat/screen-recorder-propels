@@ -18,6 +18,7 @@ import { ContentStateContext } from "../../context/ContentState"; // Import the 
 const RightPanel = () => {
   const [contentState, setContentState] = useContext(ContentStateContext); // Access the ContentState context
   const [webmFallback, setWebmFallback] = useState(false);
+  const [retryUpload, setRetryUpload] = useState(false);
   const contentStateRef = useRef(contentState);
   const consoleErrorRef = useRef([]);
 
@@ -32,8 +33,15 @@ const RightPanel = () => {
     contentStateRef.current = contentState;
   }, [contentState]);
 
+  // Handle retry upload
+  useEffect(() => {
+    if (retryUpload) {
+      setRetryUpload(false); // Reset the trigger
+      saveToDrive();
+    }
+  }, [retryUpload]);
+
   const saveToDrive = () => {
-    //if (contentState.noffmpeg) return;
     setContentState((prevContentState) => ({
       ...prevContentState,
       saveDrive: true,
@@ -46,16 +54,28 @@ const RightPanel = () => {
           title: contentState.title,
         })
         .then((response) => {
-          if (response.status === "ew") {
-            // Cancel saving to drive
+          if (response && response.status === "ok") {
             setContentState((prevContentState) => ({
               ...prevContentState,
               saveDrive: false,
+              uploadError: null,
+            }));
+          } else {
+            setContentState((prevContentState) => ({
+              ...prevContentState,
+              saveDrive: false,
+              uploadError: "NO_TOKEN_FOUND",
             }));
           }
+        })
+        .catch(() => {
+          setContentState((prevContentState) => ({
+            ...prevContentState,
+            saveDrive: false,
+            uploadError: "NO_TOKEN_FOUND",
+          }));
         });
     } else {
-      // Blob to base64
       const reader = new FileReader();
       reader.onload = () => {
         const dataUrl = reader.result;
@@ -68,15 +88,29 @@ const RightPanel = () => {
             title: contentState.title,
           })
           .then((response) => {
-            if (response.status === "ew") {
-              // Cancel saving to drive
+            if (response && response.status === "ok") {
               setContentState((prevContentState) => ({
                 ...prevContentState,
                 saveDrive: false,
+                uploadError: null,
+              }));
+            } else {
+              setContentState((prevContentState) => ({
+                ...prevContentState,
+                saveDrive: false,
+                uploadError: "NO_TOKEN_FOUND",
               }));
             }
+          })
+          .catch(() => {
+            setContentState((prevContentState) => ({
+              ...prevContentState,
+              saveDrive: false,
+              uploadError: "NO_TOKEN_FOUND",
+            }));
           });
       };
+
       if (
         !contentState.noffmpeg &&
         contentState.mp4ready &&
@@ -159,14 +193,14 @@ const RightPanel = () => {
   };
 
   const handleRawRecording = () => {
-    if (typeof contentStateRef.current.openModal === "function") {
-      contentStateRef.current.openModal(
+    if (typeof contentState.openModal === "function") {
+      contentState.openModal(
         chrome.i18n.getMessage("rawRecordingModalTitle"),
         chrome.i18n.getMessage("rawRecordingModalDescription"),
         chrome.i18n.getMessage("rawRecordingModalButton"),
         chrome.i18n.getMessage("sandboxEditorCancelButton"),
         () => {
-          const blob = contentStateRef.current.rawBlob;
+          const blob = contentState.rawBlob;
           const url = window.URL.createObjectURL(blob);
           chrome.downloads.download(
             {
@@ -184,8 +218,8 @@ const RightPanel = () => {
   };
 
   const handleTroubleshooting = () => {
-    if (typeof contentStateRef.current.openModal === "function") {
-      contentStateRef.current.openModal(
+    if (typeof contentState.openModal === "function") {
+      contentState.openModal(
         chrome.i18n.getMessage("troubleshootModalTitle"),
         chrome.i18n.getMessage("troubleshootModalDescription"),
         chrome.i18n.getMessage("troubleshootModalButton"),
@@ -197,14 +231,14 @@ const RightPanel = () => {
           chrome.runtime.getPlatformInfo(function (info) {
             platformInfo = info;
             const manifestInfo = chrome.runtime.getManifest().version;
-            const blob = contentStateRef.current.rawBlob;
+            const blob = contentState.rawBlob;
 
             // Now we need to create a file with all of this data
             const data = {
               userAgent: userAgent,
               platformInfo: platformInfo,
               manifestInfo: manifestInfo,
-              contentState: contentStateRef.current,
+              contentState: contentState,
             };
             // Create a zip file with the original recording and the data
             const zip = new JSZip();
@@ -227,6 +261,19 @@ const RightPanel = () => {
         () => {}
       );
     }
+  };
+
+  const handleRetry = () => {
+    // First clear the error state
+    setContentState((prevContentState) => ({
+      ...prevContentState,
+      uploadError: null,
+      saveDrive: false,
+    }));
+    // Use setTimeout to ensure state updates are processed
+    setTimeout(() => {
+      setRetryUpload(true);
+    }, 0);
   };
 
   return (
@@ -288,8 +335,7 @@ const RightPanel = () => {
                   className={styles.buttonRight}
                   onClick={() => {
                     chrome.runtime.sendMessage({ type: "chrome-update-info" });
-                  }}
-                >
+                  }}>
                   {chrome.i18n.getMessage("learnMoreLabel")}
                 </div>
               </div>
@@ -338,8 +384,7 @@ const RightPanel = () => {
                         }
                       );
                     }
-                  }}
-                >
+                  }}>
                   {chrome.i18n.getMessage("learnMoreLabel")}
                 </div>
               </div>
@@ -368,8 +413,7 @@ const RightPanel = () => {
                     chrome.runtime.sendMessage({
                       type: "open-processing-info",
                     });
-                  }}
-                >
+                  }}>
                   {chrome.i18n.getMessage("learnMoreLabel")}
                 </div>
               </div>
@@ -389,8 +433,7 @@ const RightPanel = () => {
                     !contentState.override) ||
                   !contentState.mp4ready ||
                   contentState.noffmpeg
-                }
-              >
+                }>
                 <div className={styles.buttonLeft}>
                   <ReactSVG src={URL + "editor/icons/trim.svg"} />
                 </div>
@@ -424,8 +467,7 @@ const RightPanel = () => {
                     !contentState.override) ||
                   !contentState.mp4ready ||
                   contentState.noffmpeg
-                }
-              >
+                }>
                 <div className={styles.buttonLeft}>
                   <ReactSVG src={URL + "editor/icons/crop.svg"} />
                 </div>
@@ -459,8 +501,7 @@ const RightPanel = () => {
                     !contentState.override) ||
                   !contentState.mp4ready ||
                   contentState.noffmpeg
-                }
-              >
+                }>
                 <div className={styles.buttonLeft}>
                   <ReactSVG src={URL + "editor/icons/audio.svg"} />
                 </div>
@@ -496,8 +537,7 @@ const RightPanel = () => {
                 className={styles.buttonLogout}
                 onClick={() => {
                   signOutDrive();
-                }}
-              >
+                }}>
                 {chrome.i18n.getMessage("signOutDriveLabel")}
               </div>
             )}
@@ -506,25 +546,24 @@ const RightPanel = () => {
                 role="button"
                 className={styles.button}
                 onClick={saveToDrive}
-                disabled={contentState.saveDrive}
-              >
+                disabled={contentState.saveDrive}>
                 <div className={styles.buttonLeft}>
-                  <ReactSVG src={URL + "editor/icons/drive.svg"} />
+                  <ReactSVG src={URL + "editor/icons/upload.svg"} />
                 </div>
                 <div className={styles.buttonMiddle}>
                   <div className={styles.buttonTitle}>
                     {contentState.saveDrive
                       ? chrome.i18n.getMessage("savingDriveLabel")
                       : contentState.driveEnabled
-                      ? chrome.i18n.getMessage("saveDriveButtonTitle")
-                      : chrome.i18n.getMessage("signInDriveLabel")}
+                      ? "Upload Video"
+                      : "Upload Video"}
                   </div>
                   <div className={styles.buttonDescription}>
                     {contentState.offline
                       ? chrome.i18n.getMessage("noConnectionLabel")
                       : contentState.updateChrome
                       ? chrome.i18n.getMessage("notAvailableLabel")
-                      : chrome.i18n.getMessage("saveDriveButtonDescription")}
+                      : "Upload video to server"}
                   </div>
                 </div>
                 <div className={styles.buttonRight}>
@@ -533,199 +572,62 @@ const RightPanel = () => {
               </div>
             </div>
           </div>
-          <div className={styles.section}>
-            <div className={styles.sectionTitle}>
-              {chrome.i18n.getMessage("sandboxExportTitle")}
-            </div>
-            <div className={styles.buttonWrap}>
-              {contentState.fallback && (
-                <div
-                  role="button"
-                  className={styles.button}
-                  onClick={() => contentState.downloadWEBM()}
-                  disabled={contentState.isFfmpegRunning}
-                >
-                  <div className={styles.buttonLeft}>
-                    <ReactSVG src={URL + "editor/icons/download.svg"} />
-                  </div>
-                  <div className={styles.buttonMiddle}>
-                    <div className={styles.buttonTitle}>
-                      {contentState.downloadingWEBM
-                        ? chrome.i18n.getMessage("downloadingLabel")
-                        : chrome.i18n.getMessage("downloadWEBMButtonTitle")}
+          {/* <button onClick={() => handleRawRecording()}>download video</button> */}
+          {contentState.uploadError && (
+            <div className={styles.errorMessage}>
+              {contentState.uploadError === "NO_TOKEN_FOUND" ? (
+                <div className={styles.errorContent}>
+                  <div className={styles.errorLeft}>
+                    <div className={styles.errorTitle}>
+                      You don't have an account yet
                     </div>
-                    <div className={styles.buttonDescription}>
-                      {chrome.i18n.getMessage("downloadWEBMButtonDescription")}
+                    <div className={styles.errorDescription}>
+                      Please sign up to save your recordings
+                    </div>
+                    <div className={styles.errorNote}>
+                      After signing up, come back here and click 'Retry' to
+                      upload your recording
                     </div>
                   </div>
-                  <div className={styles.buttonRight}>
-                    <ReactSVG src={URL + "editor/icons/right-arrow.svg"} />
-                  </div>
-                </div>
-              )}
-              <div
-                role="button"
-                className={styles.button}
-                onClick={() => {
-                  if (!contentState.mp4ready) return;
-                  contentState.download();
-                }}
-                disabled={
-                  contentState.isFfmpegRunning ||
-                  contentState.noffmpeg ||
-                  !contentState.mp4ready ||
-                  contentState.noffmpeg
-                }
-              >
-                <div className={styles.buttonLeft}>
-                  <ReactSVG src={URL + "editor/icons/download.svg"} />
-                </div>
-                <div className={styles.buttonMiddle}>
-                  <div className={styles.buttonTitle}>
-                    {contentState.downloading
-                      ? chrome.i18n.getMessage("downloadingLabel")
-                      : chrome.i18n.getMessage("downloadMP4ButtonTitle")}
-                  </div>
-                  <div className={styles.buttonDescription}>
-                    {contentState.offline && !contentState.ffmpegLoaded
-                      ? chrome.i18n.getMessage("noConnectionLabel")
-                      : contentState.updateChrome ||
-                        contentState.noffmpeg ||
-                        (contentState.duration > contentState.editLimit &&
-                          !contentState.override)
-                      ? chrome.i18n.getMessage("notAvailableLabel")
-                      : contentState.mp4ready && !contentState.isFfmpegRunning
-                      ? chrome.i18n.getMessage("downloadMP4ButtonDescription")
-                      : chrome.i18n.getMessage("preparingLabel")}
-                  </div>
-                </div>
-                <div className={styles.buttonRight}>
-                  <ReactSVG src={URL + "editor/icons/right-arrow.svg"} />
-                </div>
-              </div>
-              {!contentState.fallback && (
-                <div
-                  role="button"
-                  className={styles.button}
-                  onClick={() => contentState.downloadWEBM()}
-                  disabled={contentState.isFfmpegRunning}
-                >
-                  <div className={styles.buttonLeft}>
-                    <ReactSVG src={URL + "editor/icons/download.svg"} />
-                  </div>
-                  <div className={styles.buttonMiddle}>
-                    <div className={styles.buttonTitle}>
-                      {contentState.downloadingWEBM
-                        ? chrome.i18n.getMessage("downloadingLabel")
-                        : chrome.i18n.getMessage("downloadWEBMButtonTitle")}
+                  <div className={styles.errorButtons}>
+                    <div
+                      className={`${styles.errorButton} ${styles.primary}`}
+                      onClick={() => {
+                        chrome.tabs.create({
+                          url: `https://${process.env.DASHBOARD_URL}/dashboard`,
+                          active: true,
+                        });
+                      }}>
+                      <span>Sign Up</span>
                     </div>
-                    <div className={styles.buttonDescription}>
-                      {!contentState.isFfmpegRunning
-                        ? chrome.i18n.getMessage(
-                            "downloadWEBMButtonDescription"
-                          )
-                        : chrome.i18n.getMessage("preparingLabel")}
+                    <div
+                      className={`${styles.errorButton} ${styles.secondary}`}
+                      onClick={handleRetry}>
+                      <span>Retry</span>
                     </div>
                   </div>
-                  <div className={styles.buttonRight}>
-                    <ReactSVG src={URL + "editor/icons/right-arrow.svg"} />
+                </div>
+              ) : contentState.uploadError === "TOKEN_EXPIRED" ? (
+                <div className={styles.errorContent}>
+                  <div className={styles.errorLeft}>
+                    <div className={styles.errorTitle}>Session expired</div>
+                    <div className={styles.errorDescription}>
+                      Your session has expired. Please sign in again to
+                      continue.
+                    </div>
+                  </div>
+                  <div className={styles.errorButtons}>
+                    <div
+                      className={`${styles.errorButton} ${styles.secondary}`}
+                      onClick={handleRetry}>
+                      <ReactSVG src={URL + "editor/icons/right-arrow.svg"} />
+                      <span>Retry</span>
+                    </div>
                   </div>
                 </div>
-              )}
-              <div
-                role="button"
-                className={styles.button}
-                onClick={() => {
-                  if (!contentState.mp4ready) return;
-                  contentState.downloadGIF();
-                }}
-                disabled={
-                  contentState.isFfmpegRunning ||
-                  contentState.duration > 30 ||
-                  !contentState.mp4ready ||
-                  contentState.noffmpeg
-                }
-              >
-                <div className={styles.buttonLeft}>
-                  <ReactSVG src={URL + "editor/icons/gif.svg"} />
-                </div>
-                <div className={styles.buttonMiddle}>
-                  <div className={styles.buttonTitle}>
-                    {contentState.downloadingGIF
-                      ? chrome.i18n.getMessage("downloadingLabel")
-                      : chrome.i18n.getMessage("downloadGIFButtonTitle")}
-                  </div>
-                  <div className={styles.buttonDescription}>
-                    {contentState.offline && !contentState.ffmpegLoaded
-                      ? chrome.i18n.getMessage("noConnectionLabel")
-                      : contentState.updateChrome ||
-                        contentState.noffmpeg ||
-                        (contentState.duration > contentState.editLimit &&
-                          !contentState.override)
-                      ? chrome.i18n.getMessage("notAvailableLabel")
-                      : contentState.mp4ready
-                      ? chrome.i18n.getMessage("downloadGIFButtonDescription")
-                      : chrome.i18n.getMessage("preparingLabel")}
-                  </div>
-                </div>
-                <div className={styles.buttonRight}>
-                  <ReactSVG src={URL + "editor/icons/right-arrow.svg"} />
-                </div>
-              </div>
+              ) : null}
             </div>
-          </div>
-          <div className={styles.section}>
-            {/* Create an advanced section with a button to send logs and to download raw video file as a backup */}
-            <div className={styles.sectionTitle}>
-              {chrome.i18n.getMessage("sandboxAdvancedTitle")}
-            </div>
-            <div className={styles.buttonWrap}>
-              <div
-                role="button"
-                className={styles.button}
-                onClick={() => {
-                  handleRawRecording();
-                }}
-              >
-                <div className={styles.buttonLeft}>
-                  <ReactSVG src={URL + "editor/icons/download.svg"} />
-                </div>
-                <div className={styles.buttonMiddle}>
-                  <div className={styles.buttonTitle}>
-                    {chrome.i18n.getMessage("rawRecordingButtonTitle")}
-                  </div>
-                  <div className={styles.buttonDescription}>
-                    {chrome.i18n.getMessage("rawRecordingButtonDescription")}
-                  </div>
-                </div>
-                <div className={styles.buttonRight}>
-                  <ReactSVG src={URL + "editor/icons/right-arrow.svg"} />
-                </div>
-              </div>
-              <div
-                role="button"
-                className={styles.button}
-                onClick={() => {
-                  handleTroubleshooting();
-                }}
-              >
-                <div className={styles.buttonLeft}>
-                  <ReactSVG src={URL + "editor/icons/flag.svg"} />
-                </div>
-                <div className={styles.buttonMiddle}>
-                  <div className={styles.buttonTitle}>
-                    {chrome.i18n.getMessage("troubleshootButtonTitle")}
-                  </div>
-                  <div className={styles.buttonDescription}>
-                    {chrome.i18n.getMessage("troubleshootButtonDescription")}
-                  </div>
-                </div>
-                <div className={styles.buttonRight}>
-                  <ReactSVG src={URL + "editor/icons/right-arrow.svg"} />
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       )}
     </div>

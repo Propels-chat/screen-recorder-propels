@@ -304,3 +304,92 @@
   margin-top: 20px;
   float: right;
 }
+
+.errorMessage {
+  width: 90%;
+  margin: 16px auto;
+  padding: 16px;
+  border-radius: $container-border-radius;
+  border: 1px solid $color-border;
+}
+
+.errorContent {
+  .errorLeft {
+    margin-bottom: 16px;
+  }
+
+  .errorTitle {
+    font-family: $font-bold;
+    color: $color-text-primary;
+    margin-bottom: 4px;
+  }
+  
+  .errorDescription {
+    font-family: $font-medium;
+    color: $color-text-secondary;
+    margin-bottom: 8px;
+  }
+
+  .errorNote {
+    font-family: $font-medium;
+    color: $color-text-secondary;
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+
+  .errorButtons {
+    display: flex;
+    gap: 12px;
+
+    .errorButton {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: $container-border-radius;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      font-size: 14px;
+
+      &.primary {
+        background-color: $color-primary;
+        border: none;
+
+        &:hover {
+          opacity: 0.9;
+        }
+
+        svg {
+          width: 16px;
+          height: 16px;
+          color: white;
+        }
+
+        span {
+          color: white;
+          font-family: $font-bold;
+        }
+      }
+
+      &.secondary {
+        background-color: transparent;
+        border: 1px solid $color-border;
+
+        &:hover {
+          background-color: $color-light-grey;
+        }
+
+        svg {
+          width: 16px;
+          height: 16px;
+          color: $color-text-secondary;
+        }
+
+        span {
+          color: $color-text-secondary;
+          font-family: $font-bold;
+        }
+      }
+    }
+  }
+}
