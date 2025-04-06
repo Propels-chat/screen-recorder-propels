@@ -395,7 +395,7 @@ const ToolbarWrap = () => {
             >
               <StopIcon width="20" height="20" />
             </ToolTrigger>
-            <div className="ToolbarRecordingTime" ref={timeRef}>
+            <div className="ToolbarRecordingTime" ref={timeRef} style={{ display: 'none' }}>
               {timestamp}
             </div>
             <ToolTrigger
